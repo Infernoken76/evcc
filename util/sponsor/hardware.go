@@ -27,6 +27,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// --- VOEG DEZE REGEL TOE OM DE COMPILER TE REPAREREN ---
+const unavailable = "unavailable"
+
 // checkHardware registers the device with the sponsor server and checks authorization.
 func checkHardware(vendor string, metadata map[string]string) string {
 	conn, err := cloud.Connection()
