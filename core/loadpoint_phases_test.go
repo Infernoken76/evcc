@@ -294,6 +294,41 @@ func TestPvScalePhases(t *testing.T) {
 	}
 }
 
+func TestMinPVStartAutoScalesTo1p(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	plainCharger := api.NewMockCharger(ctrl)
+	phaseCharger := api.NewMockPhaseSwitcher(ctrl)
+
+	lp := &Loadpoint{
+		log:              util.NewLogger("foo"),
+		clock:            clock.NewMock(),
+		wakeUpTimer:      NewTimer(),
+		charger: struct {
+			*api.MockCharger
+			*api.MockPhaseSwitcher
+		}{
+			plainCharger,
+			phaseCharger,
+		},
+		minCurrent:       6,
+		maxCurrent:       16,
+		phasesConfigured: 0, // auto
+		phases:           3, // currently 3p
+		enabled:          false,
+		status:           api.StatusB,
+	}
+
+	// Min+PV start in auto mode must switch from 3p to 1p.
+	phaseCharger.EXPECT().Phases1p3p(1).Return(nil)
+
+	scaled := lp.pvScalePhases(0, lp.minCurrent, lp.maxCurrent, true)
+
+	require.Equal(t, 1, scaled)
+	require.Equal(t, 1, lp.GetPhases())
+}
+
 func TestPvScalePhasesTimer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	charger := &struct {
