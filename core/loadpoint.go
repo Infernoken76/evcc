@@ -1367,7 +1367,7 @@ func (lp *Loadpoint) minCharging() error {
 }
 
 // pvScalePhases switches phases if necessary and returns number of phases switched to
-func (lp *Loadpoint) pvScalePhases(sitePower, minCurrent, maxCurrent float64) int {
+func (lp *Loadpoint) pvScalePhases(sitePower, minCurrent, maxCurrent float64, minPVStart bool) int {
 	phases := lp.GetPhases()
 
 	// observed phase state inconsistency
@@ -1385,6 +1385,20 @@ func (lp *Loadpoint) pvScalePhases(sitePower, minCurrent, maxCurrent float64) in
 	var waiting bool
 	activePhases := lp.ActivePhases()
 	availablePower := lp.chargePower - sitePower
+	
+	if minPVStart && lp.phasesConfigured == 0 && activePhases > 1 {
+	lp.log.DEBUG.Printf("minpv start: switching to 1p at minimum %.1fA", minCurrent)
+
+	if err := lp.scalePhases(1); err != nil {
+		if !errors.Is(err, api.ErrNotAvailable) {
+			lp.log.ERROR.Println(err)
+		}
+		return phases
+	}
+
+	return 1
+    }
+	
 	scalable := (sitePower > 0 || !lp.enabled) && activePhases > 1 && lp.phasesConfigured < 3
 
 	// scale down phases
@@ -1531,7 +1545,7 @@ func (lp *Loadpoint) pvMaxCurrent(mode api.ChargeMode, sitePower, batteryBoostPo
 	// switch phases up/down
 	var scaledTo int
 	if lp.hasPhaseSwitching() && lp.phaseSwitchCompleted() {
-		scaledTo = lp.pvScalePhases(sitePower, minCurrent, maxCurrent)
+		scaledTo = lp.pvScalePhases(sitePower, minCurrent, maxCurrent, mode == api.ModeMinPV && !lp.enabled)
 	}
 
 	// calculate target charge current from delta power and actual current
